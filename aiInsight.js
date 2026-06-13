@@ -1,7 +1,11 @@
 // aiInsight.js
 // Modul untuk komunikasi dengan LLM (Ollama atau Groq)
 // Pastikan config.js sudah di-load sebelum file ini
-
+// Jika berjalan di Vercel (tanpa config.js), kita buat fallback
+const SAFE_CONFIG = typeof CONFIG !== 'undefined' ? CONFIG : {
+  AI_PROVIDER: 'gemini',
+  GEMINI_MODEL: 'gemini-3.1-flash-lite'
+};
 // ── Build prompt dari ringkasan data ─────────────────────────
 // Fungsi ini mengubah objek summaryStats menjadi teks yang
 // bisa dipahami LLM sebagai konteks bisnis
@@ -71,10 +75,9 @@ Kategori terburuk: ${worstCatName} (${worstCatVal})
 // ── Panggil LLM dan dapatkan insight ─────────────────────────
 async function getInsight(stats, focusQuestion = '') {
   const prompt = buildPrompt(stats, focusQuestion);
-
-  if (CONFIG.AI_PROVIDER === 'ollama') {
+  if (SAFE_CONFIG.AI_PROVIDER === 'ollama') {
     return await callOllama(prompt);
-  } else if (CONFIG.AI_PROVIDER === 'gemini') {
+  } else if (SAFE_CONFIG.AI_PROVIDER === 'gemini') {
     return await callGemini(prompt);
   } else {
     return await callGroq(prompt);
@@ -144,9 +147,9 @@ async function callGroq(prompt) {
 // pada satu anomali spesifik dan menghasilkan alert singkat
 async function narrateAlert(anomaly) {
   const prompt = buildAlertPrompt(anomaly);
-  if (CONFIG.AI_PROVIDER === 'ollama') {
+  if (SAFE_CONFIG.AI_PROVIDER === 'ollama') {
     return await callOllama(prompt);
-  } else if (CONFIG.AI_PROVIDER === 'gemini') {
+  } else if (SAFE_CONFIG.AI_PROVIDER === 'gemini') {
     return await callGemini(prompt);
   }
   return await callGroq(prompt);
@@ -255,24 +258,27 @@ Aturan penting:
 - Jangan tambahkan kalimat pembuka seperti "Berikut adalah..." atau kalimat penutup. Langsung berikan list bullet-nya saja.
 - Rekomendasi di ujung harus berupa 1 kata kerja (seperti: Investigasi, Perbaiki, Audit, Evaluasi, Optimalkan, Validasi).`;
 
-  if (CONFIG.AI_PROVIDER === 'ollama') return await callOllama(prompt);
-  if (CONFIG.AI_PROVIDER === 'gemini') return await callGemini(prompt);
+  if (SAFE_CONFIG.AI_PROVIDER === 'ollama') return await callOllama(prompt);
+  if (SAFE_CONFIG.AI_PROVIDER === 'gemini') return await callGemini(prompt);
   return await callGroq(prompt);
 }
 
 // ── Implementasi Gemini ───────────────────────────────────────
 async function callGemini(prompt) {
-  if (!CONFIG.GEMINI_API_KEY || CONFIG.GEMINI_API_KEY.trim() === '' || CONFIG.GEMINI_API_KEY.includes('ganti_dengan_')) {
-    throw new Error("API Key Gemini belum dikonfigurasi. Silakan masukkan API Key Anda di config.js untuk mengaktifkan Narasi AI.");
+  const hasLocalKey = typeof CONFIG !== 'undefined' && CONFIG.GEMINI_API_KEY && !CONFIG.GEMINI_API_KEY.includes('ganti_dengan_');
+  
+  let url = '';
+  if (hasLocalKey) {
+    url = `${CONFIG.GEMINI_URL}${CONFIG.GEMINI_MODEL}:generateContent?key=${CONFIG.GEMINI_API_KEY}`;
+  } else {
+    url = `/api/gemini?model=${SAFE_CONFIG.GEMINI_MODEL}`;
   }
-  const url = `${CONFIG.GEMINI_URL}${CONFIG.GEMINI_MODEL}:generateContent?key=${CONFIG.GEMINI_API_KEY}`;
+
   const res = await fetch(url, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
     body:    JSON.stringify({
-      contents: [{
-        parts: [{ text: prompt }]
-      }],
+      contents: [{ parts: [{ text: prompt }] }],
       generationConfig: {
         temperature: 0.3,
         maxOutputTokens: 800
@@ -281,18 +287,14 @@ async function callGemini(prompt) {
   });
 
   if (!res.ok) {
-    let errMsg = `Gemini error: ${res.status} ${res.statusText}`;
-    try {
-      const errData = await res.json();
-      if (errData.error && errData.error.message) {
-        errMsg = `Gemini error: ${errData.error.message}`;
-      }
-    } catch (_) {}
-    throw new Error(errMsg);
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(`Gemini API error: ${res.statusText} - ${errData.error?.message || errData.error || 'Unknown error'}`);
   }
+
   const data = await res.json();
-  if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0]) {
+  try {
     return data.candidates[0].content.parts[0].text;
+  } catch (e) {
+    return "Maaf, format respons AI tidak bisa diproses.";
   }
-  throw new Error("Respons dari Gemini tidak valid.");
 }

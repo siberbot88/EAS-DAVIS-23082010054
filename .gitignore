@@ -31,3 +31,5 @@ desktop.ini
 
 # --- NODE (jika ada) ---
 node_modules/
+
+!Sales_BY_Category.csv
