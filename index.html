@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Dashboard Capstone — Sales BY Category</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css?v=12">
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
+  <style>
+    /* Panel visibility — minimal state styles only */
+    #panel-ai      { display: block; }
+    #panel-tableau { display: none; }
+    /* No extra body padding needed; spacing will be handled by footer padding */
+  </style>
+</head>
+<body>
+
+<!-- TAB BAR — paling atas, sticky -->
+<nav class="tab-bar">
+  <div class="tab-bar-brand">Sales BY Category</div>
+  <button class="tab-btn active" id="tab-ai" onclick="switchTab('ai')">
+    <i data-feather="cpu"></i> AI Dashboard
+    <span class="tab-badge">D3 + LLM</span>
+  </button>
+  <button class="tab-btn tab-tableau" id="tab-tableau" onclick="switchTab('tableau')">
+    <i data-feather="bar-chart-2"></i> Tableau
+    <span class="tab-badge">Tableau Public</span>
+  </button>
+</nav>
+
+<!-- PANEL TABLEAU -->
+<div id="panel-tableau">
+  <div class="tableau-wrap">
+    <div class="tableau-header">
+      <div>
+        <h2>Dashboard Sales BY Category — Tableau Public</h2>
+        <p>Visualisasi interaktif dengan filter, drill-down, dan tooltip. Klik elemen chart untuk cross-filter.</p>
+      </div>
+      <a class="tableau-link"
+         href="https://public.tableau.com/shared/8BT2QGWRG"
+         target="_blank" rel="noopener">
+        Buka di Tableau Public &#x2197;
+      </a>
+    </div>
+    <div class="tableau-iframe-wrap">
+      <iframe
+        id="tableau-iframe"
+        src=""
+        data-src="https://public.tableau.com/shared/8BT2QGWRG?:embed=yes&:display_count=no&:toolbar=yes&:showVizHome=no"
+        allowfullscreen
+        sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox">
+      </iframe>
+    </div>
+    <p class="tableau-note">
+      Dashboard dibuat dengan Tableau Public &nbsp;·&nbsp; Dataset: Sales BY Category &nbsp;·&nbsp;
+      Gunakan filter di atas untuk eksplorasi interaktif
+    </p>
+  </div>
+</div>
+
+<!-- PANEL AI DASHBOARD -->
+<div id="panel-ai">
+
+<!-- ============================================================
+     ZONA 1 — SETUP: Hook + KPI + Context
+============================================================ -->
+<section class="zone zone-setup">
+  <div class="zone-inner">
+
+    <div class="zone-kicker">Category Sales Analytics &nbsp;·&nbsp; AI-Generated Narrative</div>
+
+    <!-- Judul naratif — diisi oleh generateTitle() -->
+    <h1 id="narrative-title">Memuat analisis data...</h1>
+
+    <!-- Summary Cards -->
+    <div class="summary-cards" id="summary-cards"></div>
+
+    <!-- Teks konteks setup dari LLM -->
+    <p id="setup-text" class="zone-desc"></p>
+
+  </div>
+</section>
+
+<!-- ============================================================
+     ZONA 2 — CONFLICT: Alert + Charts
+============================================================ -->
+<section class="zone zone-conflict">
+  <div class="zone-inner">
+
+    <div class="zone-kicker conflict">Conflict &nbsp;·&nbsp; Anomali Terdeteksi</div>
+    <p id="conflict-text" class="zone-desc"></p>
+
+    <!-- Alert Panel -->
+    <div class="alert-panel" id="alert-panel" style="margin-bottom:16px;">
+      <div class="alert-panel-header">
+        <div class="aph-left">
+          <span class="alert-icon"><i data-feather="alert-triangle"></i></span>
+          <span class="alert-title">Anomali Terdeteksi</span>
+          <span class="severity-badge severe"  id="badge-severe">0 Kritis</span>
+          <span class="severity-badge warning" id="badge-warning">0 Peringatan</span>
+        </div>
+        <button id="btn-narrate" onclick="requestAlertNarration()"><i data-feather="zap"></i> Narasi AI</button>
+      </div>
+      <div class="alert-tabs">
+        <button class="alert-tab active" onclick="switchAlertTab('raw', this)">Data Anomali</button>
+        <button class="alert-tab"        onclick="switchAlertTab('ai',  this)">Narasi AI</button>
+      </div>
+      <div id="alert-tab-raw" class="alert-tab-content"></div>
+      <div id="alert-tab-ai"  class="alert-tab-content" style="display:none">
+        <div id="ai-narration-output">
+          <p class="placeholder-text">Klik "Narasi AI" untuk penjelasan dari LLM.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Charts Area (1:2:1 Layout) -->
+    <div style="display: flex; flex-direction: column; gap: 16px; margin-bottom: 16px;">
+      
+      <!-- Baris 1: 1 Chart (Trend) -->
+      <div class="chart-card">
+        <div class="chart-card-header" style="display:flex; justify-content:space-between; align-items:flex-start;">
+          <div>
+            <div class="chart-card-title" id="chart-title-main">Tren Pendapatan Bulanan</div>
+            <div class="chart-card-sub">Fluktuasi Sales (Bulan/Tahun)</div>
+          </div>
+          <div class="chart-legend">
+            <span class="legend-line accent"></span> Normal
+            <span class="legend-dot anomaly" style="margin-left:8px;"></span> Anomali MoM
+          </div>
+        </div>
+        <div id="chart-main"></div>
+      </div>
+
+      <!-- Baris 2: 2 Charts (Kategori, Subcat) -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px;">
+        <div class="chart-card">
+          <div class="chart-card-title" id="chart-title-secondary1">Pendapatan per Kategori</div>
+          <div id="chart-secondary1"></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-card-title" id="chart-title-secondary2">Profit Margin per Subcat</div>
+          <div id="chart-secondary2"></div>
+        </div>
+      </div>
+
+      <!-- Baris 3: 1 Chart (Region) -->
+      <div class="chart-card">
+        <div class="chart-card-title" id="chart-title-secondary3">Profit per Region</div>
+        <div id="chart-secondary3"></div>
+      </div>
+
+    </div>
+
+  </div>
+</section>
+
+<!-- ============================================================
+     ZONA 3 — RESOLUTION: Insight + Rekomendasi
+============================================================ -->
+<section class="zone zone-resolution">
+  <div class="zone-inner">
+
+    <div class="zone-kicker resolution">Resolution &nbsp;·&nbsp; Insight &amp; Rekomendasi</div>
+    <p id="resolution-text" class="zone-desc"></p>
+
+    <div class="resolution-grid">
+
+      <!-- Insight panel (dari P13) -->
+      <div class="insight-card">
+        <div class="insight-header">
+          <h3><i data-feather="cpu"></i> AI Insight</h3>
+          <span class="model-badge" id="model-badge"></span>
+        </div>
+        <div id="insight-output" class="insight-output">
+          <p class="insight-placeholder">Memuat insight dari AI...</p>
+        </div>
+        <!-- Custom question -->
+        <div class="insight-input-wrap">
+          <textarea id="custom-question"
+            placeholder="Tanya sesuatu tentang data ini..."
+            rows="2"></textarea>
+          <button id="btn-insight" onclick="requestInsight()">
+            Minta Insight →
+          </button>
+        </div>
+        <!-- Quick questions -->
+        <div class="quick-questions">
+          <p class="qq-label">Cepat:</p>
+          <button class="qbtn" onclick="quickAsk('Kategori mana yang harus diprioritaskan untuk meningkatkan profit?')">Prioritas profit?</button>
+          <button class="qbtn" onclick="quickAsk('Region mana yang perlu perhatian khusus?')">Masalah region?</button>
+          <button class="qbtn" onclick="quickAsk('Apa rekomendasi konkret untuk 3 bulan ke depan?')">Rekomendasi?</button>
+        </div>
+      </div>
+
+      <!-- Summary statistik -->
+      <div class="chart-card">
+        <div class="chart-card-title" id="table-title">[Summary Table Title Placeholder]</div>
+        <div id="category-table" style="padding-top:8px;"></div>
+      </div>
+
+    </div>
+
+  </div>
+</section>
+
+</div><!-- /panel-ai -->
+
+<footer class="dash-footer">
+  <span class="df-info">
+    <span class="status-dot"></span>
+    Dataset: Sales BY Category &nbsp;·&nbsp; Powered by D3.js + AI
+  </span>
+  <span id="footer-note" class="df-model">Model: <span id="footer-model"></span></span>
+</footer>
+
+<!-- Urutan script: config → aiInsight → anomalyDetector → storyEngine → app -->
+<script src="config.js?v=11"></script>
+<script src="aiInsight.js?v=11"></script>
+<script src="anomalyDetector.js?v=11"></script>
+<script src="storyEngine.js?v=11"></script>
+<script src="app.js?v=11"></script>
+
+<script>
+// Render tabel ringkasan kategori di resolution zone
+// Dipanggil setelah data dimuat (hook dari window load event)
+window.addEventListener('capstone-data-ready', function(e) {
+  const stats = e.detail;
+  const el = document.getElementById('category-table');
+  if (!el || !stats) return;
+
+  // Set titles dynamically using placeholders if not defined
+  const dimensionHeader = stats.dimensionHeader || '[Dimensi]';
+  const metric1Header = stats.metric1Header || '[Metrik 1]';
+  const metric2Header = stats.metric2Header || '[Metrik 2]';
+  const ratioHeader = stats.ratioHeader || '[Rasio Margin]';
+
+  const titleTab = document.getElementById('table-title');
+  if (titleTab) titleTab.textContent = stats.tableTitle || 'Ringkasan Performa per Kategori';
+
+  el.innerHTML = `
+    <table style="width:100%;border-collapse:collapse;font-size:12px;">
+      <thead>
+        <tr style="border-bottom:1px solid #e2e5ea;">
+          <th style="text-align:left;padding:6px 8px;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#6b7280;">${dimensionHeader}</th>
+          <th style="text-align:right;padding:6px 8px;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#6b7280;">${metric1Header}</th>
+          <th style="text-align:right;padding:6px 8px;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#6b7280;">${metric2Header}</th>
+          <th style="text-align:right;padding:6px 8px;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#6b7280;">${ratioHeader}</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${stats.categories.map(c => {
+          const dimValue = c.category || c.dimension || '';
+          const m1Value = c.sales !== undefined ? c.sales : (c.metric1 || 0);
+          const m2Value = c.profit !== undefined ? c.profit : (c.metric2 || 0);
+          const ratioValue = c.margin !== undefined ? c.margin : (c.ratio || '0');
+          return `
+            <tr style="border-bottom:1px solid #f3f4f6;">
+              <td style="padding:8px;">${dimValue}</td>
+              <td style="padding:8px;text-align:right;color:#2563eb;">$${(m1Value/1000).toFixed(1)}K</td>
+              <td style="padding:8px;text-align:right;color:${m2Value>=0?'#16a34a':'#dc2626'};">$${(m2Value/1000).toFixed(1)}K</td>
+              <td style="padding:8px;text-align:right;font-weight:700;color:${+ratioValue>=15?'#16a34a':+ratioValue>=5?'#d97706':'#dc2626'};">${ratioValue}%</td>
+            </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
+
+  // Update footer model
+  const fm = document.getElementById('footer-model');
+  if (fm) {
+    if (CONFIG.AI_PROVIDER === 'ollama') fm.textContent = CONFIG.OLLAMA_MODEL;
+    else if (CONFIG.AI_PROVIDER === 'gemini') fm.textContent = CONFIG.GEMINI_MODEL;
+    else fm.textContent = CONFIG.GROQ_MODEL;
+  }
+});
+</script>
+
+<script>
+// ── Dashboard navigation state ─────────────────────────────
+let _currentDash = 'ai';
+
+// Legacy: called by old inline onclick="switchTab()"
+function switchTab(tab) { switchDash(tab); }
+
+// Main navigation handler
+function switchDash(tab) {
+  _currentDash = tab;
+
+  // Toggle panels
+  document.getElementById('panel-ai').style.display      = tab === 'ai'      ? 'block' : 'none';
+  document.getElementById('panel-tableau').style.display = tab === 'tableau' ? 'block' : 'none';
+
+  // Lazy-load Tableau iframe on first open
+  if (tab === 'tableau') {
+    const iframe = document.getElementById('tableau-iframe');
+    if (iframe && (!iframe.src || iframe.src === window.location.href)) {
+      iframe.src = iframe.getAttribute('data-src') || '';
+    }
+  }
+
+  // Update choice card active states
+  document.querySelectorAll('.dash-choice').forEach(c => c.classList.remove('active'));
+  const active = document.getElementById('dcc-' + tab);
+  if (active) active.classList.add('active');
+
+  // Update floating button label
+  const label = document.getElementById('fnav-label');
+  if (label) label.textContent = tab === 'ai' ? 'AI Dashboard' : 'Tableau';
+
+  closeDashMenu();
+}
+
+// Open the bottom-sheet overlay
+function openDashMenu() {
+  document.getElementById('dash-overlay').classList.add('open');
+  const btn = document.getElementById('fnav-btn');
+  if (btn) btn.classList.add('open');
+  // hydrate any new feather icons inside the panel
+  if (typeof feather !== 'undefined') feather.replace({ 'stroke-width': 1.75 });
+}
+
+// Close — only if click is on the backdrop, not the panel itself
+function closeDashMenu(event) {
+  if (event && event.target !== document.getElementById('dash-overlay')) return;
+  document.getElementById('dash-overlay').classList.remove('open');
+  const btn = document.getElementById('fnav-btn');
+  if (btn) btn.classList.remove('open');
+}
+</script>
+
+<script>
+// ── Hydrate Feather Icons ─────────────────────────────────────
+// Juga re-run setelah DOM dinamis diperbarui (alert narration, dll)
+if (typeof feather !== 'undefined') feather.replace({ 'stroke-width': 1.75 });
+document.addEventListener('feather-rerender', function() {
+  if (typeof feather !== 'undefined') feather.replace({ 'stroke-width': 1.75 });
+});
+</script>
+<!-- ─────────────────────────────────────────────────────
+     FLOATING NAVIGATION — fixed pill, bottom center viewport
+───────────────────────────────────────────────────── -->
+<div class="floating-nav">
+  <button class="floating-nav-btn" id="fnav-btn" onclick="openDashMenu()" aria-label="Pilih Dashboard">
+    <span class="fnav-indicator"></span>
+    <i data-feather="grid"></i>
+    <span id="fnav-label">AI Dashboard</span>
+    <i data-feather="chevron-up" class="menu-chevron"></i>
+  </button>
+</div>
+
+<!-- ─────────────────────────────────────────────────────
+     DASHBOARD SELECTION — bottom-sheet overlay
+───────────────────────────────────────────────────── -->
+<div class="dash-overlay" id="dash-overlay" onclick="closeDashMenu(event)">
+  <div class="dash-panel">
+    <div class="dash-handle"></div>
+    <p class="dash-panel-title">Pilih Mode Dashboard</p>
+    <p class="dash-panel-sub">Dataset: Sales BY Category &nbsp;·&nbsp; D3.js + AI Analytics</p>
+
+    <div class="dash-choices">
+
+      <!-- AI Dashboard card -->
+      <div class="dash-choice active" id="dcc-ai" onclick="switchDash('ai')">
+        <div class="dcc-icon">
+          <i data-feather="cpu"></i>
+        </div>
+        <div>
+          <div class="dcc-name">AI Dashboard</div>
+          <div class="dcc-sub">Visualisasi D3.js otomatis · Anomaly Detection · Narasi AI (LLM)</div>
+        </div>
+        <span class="dcc-badge">Aktif</span>
+      </div>
+
+      <!-- Tableau Dashboard card -->
+      <div class="dash-choice" id="dcc-tableau" onclick="switchDash('tableau')">
+        <div class="dcc-icon tableau">
+          <i data-feather="bar-chart-2"></i>
+        </div>
+        <div>
+          <div class="dcc-name">Tableau</div>
+          <div class="dcc-sub">Dashboard Tableau Public · Filter interaktif · Drill-down</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+</body>
+</html>

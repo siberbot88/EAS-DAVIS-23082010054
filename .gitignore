@@ -1,0 +1,33 @@
+# ============================================
+# .gitignore — AI Dashboard Capstone Project
+# ============================================
+
+# --- DATA SENSITIF: API Keys & Konfigurasi ---
+# File ini mengandung API key Gemini & Groq — JANGAN pernah di-commit!
+# Gunakan config.example.js sebagai template, lalu buat config.js sendiri.
+config.js
+
+# --- DATA CSV (bisa besar, simpan terpisah) ---
+# Download dataset dari sumber aslinya jika diperlukan
+*.csv
+
+# --- FILE SEMENTARA / BACKUP ---
+*.txt
+*.bak
+*.tmp
+*.log
+*~
+
+# --- SISTEM OPERASI ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- EDITOR ---
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# --- NODE (jika ada) ---
+node_modules/
