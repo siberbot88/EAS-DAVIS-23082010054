@@ -1,6 +1,6 @@
 # Executive Sales & Anomaly Dashboard (Sales BY Category)
 
-Dashboard analitik penjualan berbasis AI (AI-Augmented Dashboard) yang dirancang khusus untuk eksekutif level C (C-Suite) dengan filosofi desain "Antigravity"—ringkas, bersih, dan berorientasi cerita dalam alur narasi **Setup-Conflict-Resolution (SCR)**.
+Dashboard analitik penjualan berbasis AI (AI-Augmented Dashboard) yang dirancang khusus untuk eksekutif level C (C-Suite) dengan filosofi desain "Semantic"—ringkas, bersih, dan berorientasi cerita dalam alur narasi **Setup-Conflict-Resolution (SCR)**.
 
 Proyek ini dibangun menggunakan **D3.js (v7)** untuk visualisasi data interaktif secara langsung, dikombinasikan dengan **Google Gemini API** untuk memproduksi narasi naratif bisnis dan alert anomali secara real-time.
 
