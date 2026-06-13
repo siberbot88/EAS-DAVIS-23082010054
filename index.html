@@ -219,6 +219,16 @@
 
 <!-- Urutan script: config → aiInsight → anomalyDetector → storyEngine → app -->
 <script src="config.js?v=11"></script>
+<script>
+  // Fallback jika berjalan di Vercel dan config.js tidak di-deploy (karena di-gitignore)
+  if (typeof CONFIG === 'undefined') {
+    window.CONFIG = {
+      AI_PROVIDER: 'gemini',
+      GEMINI_MODEL: 'gemini-3.1-flash-lite',
+      LANGUAGE: 'Indonesian'
+    };
+  }
+</script>
 <script src="aiInsight.js?v=11"></script>
 <script src="anomalyDetector.js?v=11"></script>
 <script src="storyEngine.js?v=11"></script>

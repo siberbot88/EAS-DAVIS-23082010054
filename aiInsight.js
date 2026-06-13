@@ -1,11 +1,7 @@
 // aiInsight.js
 // Modul untuk komunikasi dengan LLM (Ollama atau Groq)
 // Pastikan config.js sudah di-load sebelum file ini
-// Jika berjalan di Vercel (tanpa config.js), kita buat fallback
-const SAFE_CONFIG = typeof CONFIG !== 'undefined' ? CONFIG : {
-  AI_PROVIDER: 'gemini',
-  GEMINI_MODEL: 'gemini-3.1-flash-lite'
-};
+
 // ── Build prompt dari ringkasan data ─────────────────────────
 // Fungsi ini mengubah objek summaryStats menjadi teks yang
 // bisa dipahami LLM sebagai konteks bisnis
@@ -75,9 +71,9 @@ Kategori terburuk: ${worstCatName} (${worstCatVal})
 // ── Panggil LLM dan dapatkan insight ─────────────────────────
 async function getInsight(stats, focusQuestion = '') {
   const prompt = buildPrompt(stats, focusQuestion);
-  if (SAFE_CONFIG.AI_PROVIDER === 'ollama') {
+  if (CONFIG.AI_PROVIDER === 'ollama') {
     return await callOllama(prompt);
-  } else if (SAFE_CONFIG.AI_PROVIDER === 'gemini') {
+  } else if (CONFIG.AI_PROVIDER === 'gemini') {
     return await callGemini(prompt);
   } else {
     return await callGroq(prompt);
@@ -147,9 +143,9 @@ async function callGroq(prompt) {
 // pada satu anomali spesifik dan menghasilkan alert singkat
 async function narrateAlert(anomaly) {
   const prompt = buildAlertPrompt(anomaly);
-  if (SAFE_CONFIG.AI_PROVIDER === 'ollama') {
+  if (CONFIG.AI_PROVIDER === 'ollama') {
     return await callOllama(prompt);
-  } else if (SAFE_CONFIG.AI_PROVIDER === 'gemini') {
+  } else if (CONFIG.AI_PROVIDER === 'gemini') {
     return await callGemini(prompt);
   }
   return await callGroq(prompt);
@@ -258,8 +254,8 @@ Aturan penting:
 - Jangan tambahkan kalimat pembuka seperti "Berikut adalah..." atau kalimat penutup. Langsung berikan list bullet-nya saja.
 - Rekomendasi di ujung harus berupa 1 kata kerja (seperti: Investigasi, Perbaiki, Audit, Evaluasi, Optimalkan, Validasi).`;
 
-  if (SAFE_CONFIG.AI_PROVIDER === 'ollama') return await callOllama(prompt);
-  if (SAFE_CONFIG.AI_PROVIDER === 'gemini') return await callGemini(prompt);
+  if (CONFIG.AI_PROVIDER === 'ollama') return await callOllama(prompt);
+  if (CONFIG.AI_PROVIDER === 'gemini') return await callGemini(prompt);
   return await callGroq(prompt);
 }
 
@@ -271,7 +267,7 @@ async function callGemini(prompt) {
   if (hasLocalKey) {
     url = `${CONFIG.GEMINI_URL}${CONFIG.GEMINI_MODEL}:generateContent?key=${CONFIG.GEMINI_API_KEY}`;
   } else {
-    url = `/api/gemini?model=${SAFE_CONFIG.GEMINI_MODEL}`;
+    url = `/api/gemini?model=${CONFIG.GEMINI_MODEL || 'gemini-3.1-flash-lite'}`;
   }
 
   const res = await fetch(url, {
